@@ -203,7 +203,7 @@ async function loadData() {
     ? { frozen: false, message: "", frozen_at: null }
     : { frozen: !!S.data.frozen, message: S.data.message || "", frozen_at: S.data.frozen_at || null };
   db.leagues = L.data.map(l => ({
-    id: l.id, name: l.name, season: l.season,
+    id: l.id, name: l.name, season: l.season, owner_id: l.owner_id,
     teams: T.data.filter(t => t.league_id === l.id).map(t => ({
       id: t.id, name: t.name, ground: t.ground || "", colours: t.colours || "",
       players: P.data.filter(p => p.team_id === t.id).map(p => ({
@@ -253,6 +253,10 @@ function takeFlash() {
 }
 function card(inner, extra = "") { return `<div class="card" ${extra}>${inner}</div>`; }
 function findLeague(id) { return db.leagues.find(l => l.id === id); }
+// Admins manage only the leagues they created; the master manages all.
+function canManage(league) {
+  return !!me && (me.role === "master" || league.owner_id === me.user_id);
+}
 function findTeam(id) {
   for (const l of db.leagues) {
     const t = l.teams.find(t => t.id === id);
@@ -343,7 +347,12 @@ async function route() {
   }
   else if (a === "admin") {
     if (!me) { location.hash = "#/login"; return; }
-    if (!b) html = viewAdmin();
+    const owner = b === "league" ? findLeague(id)
+      : b === "team" ? (findTeam(id) || {}).league
+      : b === "fixture" ? (findFixture(id) || {}).league
+      : null;
+    if (owner && !canManage(owner)) html = card("This league belongs to another admin, so you cannot open it.");
+    else if (!b) html = viewAdmin();
     else if (b === "league") html = viewAdminLeague(id);
     else if (b === "team") html = viewAdminTeam(id);
     else if (b === "fixture" && parts[3] === "sheet") html = viewMatchSheet(id);
@@ -534,7 +543,7 @@ function viewAdmin() {
       <button type="submit">Create league</button>
     </form>`)}
   ${card(`<table><tr><th>League</th><th>Season</th><th></th></tr>
-    ${db.leagues.slice().reverse().map(l => `<tr>
+    ${db.leagues.filter(canManage).slice().reverse().map(l => `<tr>
       <td>${esc(l.name)}</td><td>${esc(l.season)}</td>
       <td><a class="link" href="#/admin/league/${l.id}">Manage</a>
         <button class="danger" onclick="A.deleteLeague(${l.id})">Delete</button></td></tr>`).join("")
