@@ -803,13 +803,12 @@ function viewMaster() {
   ${card(`<table><tr><th>Username</th><th>Role</th><th></th></tr>
     ${db.admins.map(u => `<tr><td>${esc(u.username)}</td>
       <td>${u.role === "master" ? "Master developer" : "Admin"}</td>
-      <td>${u.role === "admin" ? `<details class="edit-admin"><summary>Edit</summary>
+      <td>${(u.role === "admin" || u.user_id === me.user_id) ? `<details class="edit-admin"><summary>Edit</summary>
         <form onsubmit="A.updateAdmin('${u.user_id}', this); return false">
           <input name="username" value="${esc(u.username)}" placeholder="New username" required>
           <input name="password" type="password" minlength="8" placeholder="New password (leave blank to keep)">
           <button type="submit">Save changes</button>
-        </form></details>
-        <button class="danger" onclick="A.deleteAdmin('${u.user_id}')">Remove</button>` : ""}</td></tr>`).join("")}
+        </form></details>` : ""}${u.role === "admin" ? `<button class="danger" onclick="A.deleteAdmin('${u.user_id}')">Remove</button>` : ""}</td></tr>`).join("")}
     </table>`)}`;
 }
 
