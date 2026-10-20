@@ -130,6 +130,8 @@
     border-top:1px solid var(--line); background:rgba(255,255,255,.5); backdrop-filter:blur(6px);
   }
   footer .credit { font-weight:700; background:linear-gradient(90deg,#b8860b,var(--gold),#b8860b); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .frozen { text-align:center; padding:70px 20px; }
+  .frozen-icon { font-size:3rem; margin-bottom:8px; }
   @media (max-width:600px) {
     main { padding:18px 14px 30px; }
     h1 { font-size:1.5rem; }
@@ -166,7 +168,7 @@ const plainFetch = (url, opts = {}) => {
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { global: { fetch: plainFetch } });
 
 const A = {};       // action handlers used by forms and buttons
-let db = { leagues: [], admins: [] };
+let db = { leagues: [], admins: [], system: { frozen: false, message: "", frozen_at: null } };
 let me = null;      // logged-in admin { user_id, username, role } or null
 
 /* ---------- load data from Supabase ---------- */
@@ -180,6 +182,10 @@ async function loadData() {
   ]);
   const failed = [L, T, P, F, E].find(r => r.error);
   if (failed) throw failed.error;
+  const S = await sb.from("fm_system").select("*").eq("id", 1).maybeSingle();
+  db.system = S.error || !S.data
+    ? { frozen: false, message: "", frozen_at: null }
+    : { frozen: !!S.data.frozen, message: S.data.message || "", frozen_at: S.data.frozen_at || null };
   db.leagues = L.data.map(l => ({
     id: l.id, name: l.name, season: l.season,
     teams: T.data.filter(t => t.league_id === l.id).map(t => ({
@@ -311,7 +317,8 @@ async function route() {
   const id = Number(parts[2]);
   let html;
 
-  if (!a) html = viewIndex();
+  if (isFrozenForMe() && a !== "login" && a !== "logout") html = viewFrozen();
+  else if (!a) html = viewIndex();
   else if (a === "league") html = viewLeague(Number(b));
   else if (a === "login") html = viewLogin();
   else if (a === "logout") {
@@ -342,6 +349,42 @@ async function route() {
   }
   document.getElementById("app").innerHTML = takeFlash() + (html || card("Page not found."));
 }
+
+/* ---------- SYSTEM FREEZE ---------- */
+function isFrozenForMe() {
+  return !!db.system.frozen && !(me && me.role === "master");
+}
+function viewFrozen() {
+  return `<div class="frozen"><div class="frozen-icon">❄</div><h1>System paused</h1>
+    <p class="muted">${esc(db.system.message || "This football management system is temporarily paused. Please check back later.")}</p>
+    <p><a class="link" href="#/login">Developer sign-in</a></p></div>`;
+}
+function viewFreezePanel() {
+  const s = db.system;
+  return card(s.frozen
+    ? `<h2>System is frozen</h2>
+       <p class="muted">Frozen since ${esc(s.frozen_at ? new Date(s.frozen_at).toLocaleString() : "unknown time")}. Viewers see the pause notice and admins cannot sign in or change records. You can still sign in and unfreeze.</p>
+       <button onclick="A.setFrozen(false)">Unfreeze the system</button>`
+    : `<h2>Freeze the system</h2>
+       <p class="muted">Pauses the public panel and locks out admins. You stay able to sign in and unfreeze.</p>
+       <form onsubmit="A.setFrozen(true, this.message.value); return false">
+         <input name="message" placeholder="Message for viewers (optional)" style="width:min(420px,100%)">
+         <button class="danger" type="submit">Freeze the system</button>
+       </form>`);
+}
+A.setFrozen = async (frozen, message = "") => {
+  if (!me || me.role !== "master") return;
+  if (frozen && !confirm("Freeze the system? Admins will be locked out until you unfreeze it.")) return;
+  const patch = frozen
+    ? { frozen: true, frozen_at: new Date().toISOString(), frozen_by: me.username, message: message.trim() || null }
+    : { frozen: false, frozen_at: null, frozen_by: null, message: null };
+  const { error } = await sb.from("fm_system").update(patch).eq("id", 1);
+  if (error) return alert("Could not change the system state: " + error.message);
+  await loadData();
+  logActivity(frozen ? "Froze the system" : "Unfroze the system");
+  flash(frozen ? "System frozen." : "System unfrozen.");
+  route();
+};
 
 /* ---------- PUBLIC VIEWERS PANEL (no login) ---------- */
 function viewIndex() {
@@ -393,7 +436,7 @@ function viewLeague(id) {
 
 /* ---------- LOGIN ---------- */
 function viewLogin() {
-  return card(`<h2>Admin login</h2>
+  return card(`<h2>Admin login</h2>${db.system.frozen ? '<p class="flash">The system is frozen. Only the developer can sign in.</p>' : ""}
     <form onsubmit="A.login(this); return false">
       <input name="username" placeholder="Email or username" required autofocus>
       <input name="password" type="password" placeholder="Password" required>
@@ -410,6 +453,11 @@ A.login = async f => {
   });
   if (error) { flash("Wrong username or password."); return route(); }
   await refreshMe();
+  if (me && db.system.frozen && me.role !== "master") {
+    await sb.auth.signOut(); me = null;
+    flash("The system is frozen. Only the developer can sign in.");
+    return route();
+  }
   if (!me) { flash("This account is not an admin account."); return route(); }
   logActivity("Logged in");
   flash(`Welcome, ${me.username}.`);
@@ -745,6 +793,7 @@ function viewMatchSheet(id) {
 /* ---------- MASTER DEVELOPER ---------- */
 function viewMaster() {
   return `<h1>Admin accounts</h1>
+  ${viewFreezePanel()}
   ${card(`<h2>Create an admin account</h2>
     <form onsubmit="A.createAdmin(this); return false">
       <input name="username" placeholder="Username" required>
@@ -812,6 +861,7 @@ A.deleteAdmin = async userId => {
   try {
     await loadData();
     await refreshMe();
+    if (me && db.system.frozen && me.role !== "master") { await sb.auth.signOut(); me = null; }
   } catch (e) {
     document.getElementById("app").innerHTML = card(`Could not connect to the database: ${esc(e.message)}`);
     return;
