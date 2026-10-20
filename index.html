@@ -301,6 +301,23 @@ function matchInfoLines(f) {
   return lines.map(l => `<div class="muted">${l}</div>`).join("");
 }
 
+function motmCell(f) {
+  const pr = f.motmId ? findPlayer(f.motmId) : null;
+  if (!pr) return `<span class="muted">Not yet chosen</span>`;
+  return `<strong>${esc(pr.player.name)}</strong>${pr.player.shirt != null ? ` (#${pr.player.shirt})` : ""}<div class="muted">${esc(pr.team.name)}</div>`;
+}
+function motmAwards(l) {
+  const totals = {};
+  l.fixtures.filter(f => f.status === "finished" && f.motmId).forEach(f => {
+    const pr = findPlayer(f.motmId);
+    if (!pr) return;
+    const key = pr.player.name + "|" + pr.team.name;
+    totals[key] = totals[key] || { name: pr.player.name, team: pr.team.name, n: 0 };
+    totals[key].n++;
+  });
+  return Object.values(totals).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+}
+
 /* ---------- league calculations ---------- */
 function standings(l) {
   const t = {};
@@ -467,10 +484,11 @@ function viewLeague(id) {
         || `<tr><td colspan="3" class="muted">No upcoming fixtures.</td></tr>`}
     </table>`)}
     ${card(`<h2>Results</h2><table>
-      <tr><th>Date</th><th>Match</th><th class="num">Score</th></tr>
+      <tr><th>Date</th><th>Match</th><th class="num">Score</th><th>Man of the Match</th></tr>
       ${res.map(f => `<tr><td>${esc(f.date)}</td><td>${esc(teamName(f.homeId))} vs ${esc(teamName(f.awayId))}</td>
-        <td class="num"><strong>${f.hs} - ${f.as}</strong>${matchInfoLines(f)}</td></tr>`).join("")
-        || `<tr><td colspan="3" class="muted">No results yet.</td></tr>`}
+        <td class="num"><strong>${f.hs} - ${f.as}</strong>${f.referee ? `<div class="muted">Referee: ${esc(f.referee)}</div>` : ""}</td>
+        <td>${motmCell(f)}</td></tr>`).join("")
+        || `<tr><td colspan="4" class="muted">No results yet.</td></tr>`}
     </table>`)}
   </div>
   ${card(`<h2>League table</h2>
@@ -481,6 +499,11 @@ function viewLeague(id) {
       <td class="num">${r.D}</td><td class="num">${r.L}</td><td class="num">${r.GF}</td><td class="num">${r.GA}</td>
       <td class="num">${r.GD}</td><td class="num"><strong>${r.Pts}</strong></td></tr>`).join("")
       || `<tr><td colspan="10" class="muted">No teams yet.</td></tr>`}
+  </table>`)}
+  ${card(`<h2>Man of the Match awards</h2><table>
+    <tr><th>#</th><th>Player</th><th>Team</th><th class="num">Awards</th></tr>
+    ${motmAwards(l).map((a, i) => `<tr><td>${i + 1}</td><td>${esc(a.name)}</td><td>${esc(a.team)}</td><td class="num">${a.n}</td></tr>`).join("")
+      || `<tr><td colspan="4" class="muted">No Man of the Match awards yet.</td></tr>`}
   </table>`)}
   ${card(`<h2>Top scorers</h2><table>
     <tr><th>#</th><th>Player</th><th>Team</th><th class="num">Goals</th></tr>
