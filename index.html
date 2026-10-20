@@ -158,6 +158,8 @@
   .panel-tag.viewer { background:#64748b; }
   .panel-tag.admin { background:var(--green); }
   .panel-tag.developer { background:linear-gradient(90deg,#b8860b,var(--gold)); color:#1b1400; }
+  .motm-row { display:flex; align-items:center; gap:10px; }
+  .motm-photo { width:46px; height:46px; border-radius:50%; object-fit:cover; border:2px solid var(--gold); flex:none; }
   .frozen { text-align:center; padding:70px 20px; }
   .frozen-icon { font-size:3rem; margin-bottom:8px; }
   @media (max-width:600px) {
@@ -219,7 +221,8 @@ async function loadData() {
     teams: T.data.filter(t => t.league_id === l.id).map(t => ({
       id: t.id, name: t.name, ground: t.ground || "", colours: t.colours || "",
       players: P.data.filter(p => p.team_id === t.id).map(p => ({
-        id: p.id, name: p.name, position: p.position || "", shirt: p.shirt_number, dob: p.date_of_birth || ""
+        id: p.id, name: p.name, position: p.position || "", shirt: p.shirt_number, dob: p.date_of_birth || "",
+        photo: p.photo_path ? `${SUPABASE_URL}/storage/v1/object/public/player-photos/${p.photo_path}` : ""
       }))
     })),
     fixtures: F.data.filter(f => f.league_id === l.id).map(f => ({
@@ -304,7 +307,8 @@ function matchInfoLines(f) {
 function motmCell(f) {
   const pr = f.motmId ? findPlayer(f.motmId) : null;
   if (!pr) return `<span class="muted">Not yet chosen</span>`;
-  return `<strong>${esc(pr.player.name)}</strong>${pr.player.shirt != null ? ` (#${pr.player.shirt})` : ""}<div class="muted">${esc(pr.team.name)}</div>`;
+  const photo = pr.player.photo ? `<img src="${pr.player.photo}" alt="" class="motm-photo">` : "";
+  return `<div class="motm-row">${photo}<div><strong>${esc(pr.player.name)}</strong>${pr.player.shirt != null ? ` (#${pr.player.shirt})` : ""}<div class="muted">${esc(pr.team.name)}</div></div></div>`;
 }
 function motmAwards(l) {
   const totals = {};
@@ -602,6 +606,37 @@ function viewAdmin() {
       || `<tr><td colspan="3" class="muted">No leagues yet.</td></tr>`}
     </table>`)}`;
 }
+function shrinkPhoto(file, max) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      c.toBlob(b => (b ? resolve(b) : reject(new Error("Could not prepare the photo."))), "image/jpeg", 0.85);
+    };
+    img.onerror = () => reject(new Error("That file is not a picture."));
+    img.src = URL.createObjectURL(file);
+  });
+}
+A.uploadPlayerPhoto = async f => {
+  const pid = Number(f.player_id.value);
+  const file = f.photo.files[0];
+  if (!pid || !file) return alert("Choose a player and a photo.");
+  let blob;
+  try { blob = await shrinkPhoto(file, 400); } catch (e) { return alert(e.message); }
+  const path = `${pid}-${Date.now()}.jpg`;
+  const { error: upErr } = await sb.storage.from("player-photos").upload(path, blob, { contentType: "image/jpeg" });
+  if (upErr) return alert("Photo upload failed: " + upErr.message);
+  const { error } = await sb.from("fm_players").update({ photo_path: path }).eq("id", pid);
+  if (error) return alert("Could not save the photo: " + error.message);
+  logActivity("Uploaded a player photo");
+  await loadData();
+  flash("Player photo saved.");
+  route();
+};
 A.createLeague = f => {
   const d = Object.fromEntries(new FormData(f));
   if (!d.name.trim() || !d.season.trim()) return;
@@ -731,6 +766,13 @@ function viewAdminFixture(id) {
           <option value="finished" ${f.status === "finished" ? "selected" : ""}>Finished</option>
         </select>
         <button type="submit">Save result</button>
+      </form>`)}
+    ${card(`<h2>Player photo</h2>
+      <p class="muted">Upload a photo for the Man of the Match or any player in this match.</p>
+      <form onsubmit="A.uploadPlayerPhoto(this); return false">
+        <select name="player_id" style="width:100%;margin-bottom:8px">${players.map(p => `<option value="${p.id}">${esc(p.team)}: ${esc(p.name)}${p.shirt != null ? ` (#${p.shirt})` : ""}</option>`).join("")}</select>
+        <input name="photo" type="file" accept="image/*" required style="width:100%;margin-bottom:8px">
+        <button type="submit">Upload photo</button>
       </form>`)}
     ${card(`<h2>Match officials and Man of the Match</h2>
       <form onsubmit="A.saveMatchInfo(${f.id}, this); return false">
