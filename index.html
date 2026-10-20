@@ -146,6 +146,18 @@
   .eyebrow { text-transform:uppercase; letter-spacing:.18em; font-size:.74rem; font-weight:700; color:var(--gold); margin:0; }
   .grid .card { border-top:3px solid var(--gold); }
   .grid .card h2 { font-size:1.3rem; }
+  .panel-bar { display:flex; align-items:center; flex-wrap:wrap; gap:10px; background:#fff; border:1px solid var(--line);
+    border-radius:14px; padding:10px 14px; margin-bottom:18px; box-shadow:var(--shadow); }
+  .panel-bar .spacer { flex:1; }
+  .panel-bar a { color:var(--dark); text-decoration:none; font-weight:600; font-size:.92rem; padding:6px 10px; border-radius:8px; }
+  .panel-bar a:hover { background:var(--line); }
+  .panel-bar a.on { background:var(--navy-2); color:#fff; }
+  .panel-bar .logout-btn { margin:0; padding:7px 14px; }
+  .panel-who { font-size:.85rem; }
+  .panel-tag { font-size:.74rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; padding:6px 10px; border-radius:999px; color:#fff; }
+  .panel-tag.viewer { background:#64748b; }
+  .panel-tag.admin { background:var(--green); }
+  .panel-tag.developer { background:linear-gradient(90deg,#b8860b,var(--gold)); color:#1b1400; }
   .frozen { text-align:center; padding:70px 20px; }
   .frozen-icon { font-size:3rem; margin-bottom:8px; }
   @media (max-width:600px) {
@@ -319,6 +331,23 @@ function scorers(l) {
 }
 function fixtureSort(a, b) { return a.date.localeCompare(b.date) || a.id - b.id; }
 
+/* ---------- panel bar: shows which panel you are in, with links and log out ---------- */
+function panelBar(a) {
+  if (!me) {
+    return `<div class="panel-bar"><span class="panel-tag viewer">Public viewers panel</span>
+      <span class="spacer"></span><a href="#/login">Admin login</a></div>`;
+  }
+  const isMaster = me.role === "master";
+  const tag = isMaster ? `<span class="panel-tag developer">Developer panel</span>` : `<span class="panel-tag admin">Admin panel</span>`;
+  const link = (page, label, href) => `<a href="${href}" class="${a === page ? "on" : ""}">${label}</a>`;
+  return `<div class="panel-bar">${tag}<span class="muted panel-who">Signed in as ${esc(me.username)}</span>
+    <span class="spacer"></span>
+    ${link("admin", "Leagues", "#/admin")}
+    ${isMaster ? link("master", "Admin accounts", "#/master") + link("activity", "Activity", "#/activity") : ""}
+    ${link("", "Public site", "#/")}
+    <button class="danger logout-btn" onclick="A.logout()">Log out</button></div>`;
+}
+
 /* ---------- navigation ---------- */
 function renderNav() {
   document.getElementById("nav").innerHTML =
@@ -372,7 +401,7 @@ async function route() {
     }
     html = viewMaster();
   }
-  document.getElementById("app").innerHTML = takeFlash() + (html || card("Page not found."));
+  document.getElementById("app").innerHTML = takeFlash() + (a === "login" ? "" : panelBar(a)) + (html || card("Page not found."));
 }
 
 /* ---------- SYSTEM FREEZE ---------- */
