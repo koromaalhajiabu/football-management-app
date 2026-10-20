@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Football Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root { --green:#0b6e3a; --dark:#0f1f17; --light:#f4f7f5; --line:#dfe6e1; }
   * { box-sizing:border-box; }
@@ -42,15 +45,106 @@
   .sheet-head { text-align:center; border-bottom:2px solid #0a2540; padding-bottom:10px; margin-bottom:14px; }
   .sheet-head h1 { font-size:1.4rem; margin:0; }
   .sheet-score { font-size:2rem; font-weight:700; text-align:center; margin:8px 0; font-variant-numeric:tabular-nums; }
+
+  /* ---------- Premium theme ---------- */
+  :root {
+    --green:#0b6e3a; --green-2:#14a056; --gold:#d4a72c; --gold-soft:#f6e7b4;
+    --navy:#07130d; --navy-2:#0d2418; --dark:#0e1a14; --light:#f3f6f4; --line:#e3ebe6;
+    --ink-muted:#5f6f67; --radius:16px;
+    --shadow:0 1px 2px rgba(7,19,13,.06), 0 8px 24px rgba(7,19,13,.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --light:#0a120e; --dark:#e8f0eb; --line:#1f3328; --ink-muted:#9bb0a4; }
+  }
+  body {
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 90% -10%, rgba(212,167,44,.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 0%, rgba(20,160,86,.10), transparent 60%),
+      var(--light);
+    color:var(--dark); -webkit-font-smoothing:antialiased; min-height:100vh;
+    display:flex; flex-direction:column;
+  }
+  header {
+    background:linear-gradient(120deg, var(--navy) 0%, var(--navy-2) 55%, #114d2c 100%);
+    color:#fff; padding:16px 22px; position:sticky; top:0; z-index:10;
+    border-bottom:1px solid rgba(212,167,44,.35);
+    box-shadow:0 6px 24px rgba(0,0,0,.18);
+  }
+  header .brand { display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.2px; font-size:1.15rem; }
+  header .brand .mark {
+    width:34px; height:34px; border-radius:10px; display:grid; place-items:center;
+    background:linear-gradient(135deg,var(--gold),#fff1c2); color:var(--navy); font-size:1rem; box-shadow:0 2px 10px rgba(212,167,44,.35);
+  }
+  header nav a {
+    color:rgba(255,255,255,.85); margin-left:6px; padding:7px 12px; border-radius:999px; font-size:.92rem; font-weight:500;
+    transition:background .2s, color .2s;
+  }
+  header nav a:hover { background:rgba(255,255,255,.10); color:#fff; }
+  main { max-width:1080px; padding:26px 20px 40px; width:100%; margin:0 auto; flex:1; animation:rise .45s ease both; }
+  @keyframes rise { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  h1 { font-size:1.9rem; font-weight:800; letter-spacing:-.02em; margin:6px 0 18px; }
+  h2 { font-size:1.15rem; font-weight:700; letter-spacing:-.01em; margin:0 0 12px; }
+  .card {
+    background:#fff; border:1px solid var(--line); border-radius:var(--radius);
+    padding:20px; margin-bottom:18px; box-shadow:var(--shadow); overflow-x:auto;
+    transition:transform .2s, box-shadow .2s;
+  }
+  .grid .card:hover { transform:translateY(-2px); box-shadow:0 14px 34px rgba(7,19,13,.12); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .card { background:#11211a; }
+  }
+  table { width:100%; border-collapse:separate; border-spacing:0; font-size:.94rem; }
+  th, td { padding:11px 12px; border-bottom:1px solid var(--line); text-align:left; }
+  th { background:transparent; color:var(--ink-muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; font-weight:700; }
+  tr:last-child td { border-bottom:0; }
+  tbody tr:hover td, table tr:hover td { background:rgba(20,160,86,.05); }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  input, select {
+    font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:10px; margin:4px 6px 4px 0;
+    background:#fff; color:var(--dark); max-width:100%; transition:border-color .2s, box-shadow .2s;
+  }
+  input:focus, select:focus { outline:none; border-color:var(--green-2); box-shadow:0 0 0 4px rgba(20,160,86,.15); }
+  button {
+    font:inherit; font-weight:600; padding:10px 16px; border:0; border-radius:10px; margin:4px 4px 4px 0; cursor:pointer;
+    background:linear-gradient(135deg,var(--green),var(--green-2)); color:#fff;
+    box-shadow:0 2px 8px rgba(11,110,58,.25); transition:transform .15s, box-shadow .2s, filter .2s;
+  }
+  button:hover { transform:translateY(-1px); box-shadow:0 6px 16px rgba(11,110,58,.3); }
+  button:active { transform:translateY(0); }
+  button.danger { background:linear-gradient(135deg,#b3261e,#e5484d); box-shadow:0 2px 8px rgba(179,38,30,.25); }
+  a.link { color:var(--green); font-weight:600; text-decoration:none; }
+  a.link:hover { text-decoration:underline; }
+  .flash {
+    background:linear-gradient(90deg,var(--gold-soft),#fffaf0); border:1px solid #e9cf72; color:#4a3a05;
+    padding:12px 16px; border-radius:12px; margin-bottom:16px; font-weight:500; box-shadow:var(--shadow);
+  }
+  .grid { gap:18px; }
+  .muted { color:var(--ink-muted); font-size:.9rem; }
+  details.edit-admin { display:inline-block; margin-right:6px; vertical-align:top; }
+  details.edit-admin summary { list-style:none; cursor:pointer; display:inline-block; padding:10px 16px; border-radius:10px; font-weight:600; background:var(--gold-soft); color:#4a3a05; margin:4px 4px 4px 0; }
+  details.edit-admin summary::-webkit-details-marker { display:none; }
+  details.edit-admin form { margin-top:10px; padding:12px; border:1px solid var(--line); border-radius:12px; background:#fbfcfb; min-width:260px; }
+  footer {
+    margin-top:auto; text-align:center; padding:22px 20px; color:var(--ink-muted); font-size:.88rem;
+    border-top:1px solid var(--line); background:rgba(255,255,255,.5); backdrop-filter:blur(6px);
+  }
+  footer .credit { font-weight:700; background:linear-gradient(90deg,#b8860b,var(--gold),#b8860b); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  @media (max-width:600px) {
+    main { padding:18px 14px 30px; }
+    h1 { font-size:1.5rem; }
+    th, td { padding:8px 6px; font-size:.84rem; }
+    header { padding:14px 16px; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <a class="brand" href="#/">⚽ Football Management</a>
+  <a class="brand" href="#/"><span class="mark">⚽</span>Football Management</a>
   <nav id="nav"></nav>
 </header>
 <main id="app"><div class="card">Loading…</div></main>
-<footer>Sierra Leone Football Management System</footer>
+<footer>Sierra Leone Football Management System<br><span class="credit">Designed by Alhaji Abu Koroma</span></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -660,7 +754,13 @@ function viewMaster() {
   ${card(`<table><tr><th>Username</th><th>Role</th><th></th></tr>
     ${db.admins.map(u => `<tr><td>${esc(u.username)}</td>
       <td>${u.role === "master" ? "Master developer" : "Admin"}</td>
-      <td>${u.role === "admin" ? `<button class="danger" onclick="A.deleteAdmin('${u.user_id}')">Remove</button>` : ""}</td></tr>`).join("")}
+      <td>${u.role === "admin" ? `<details class="edit-admin"><summary>Edit</summary>
+        <form onsubmit="A.updateAdmin('${u.user_id}', this); return false">
+          <input name="username" value="${esc(u.username)}" placeholder="New username" required>
+          <input name="password" type="password" minlength="8" placeholder="New password (leave blank to keep)">
+          <button type="submit">Save changes</button>
+        </form></details>
+        <button class="danger" onclick="A.deleteAdmin('${u.user_id}')">Remove</button>` : ""}</td></tr>`).join("")}
     </table>`)}`;
 }
 
@@ -681,6 +781,19 @@ A.createAdmin = async f => {
     await refreshAdmins();
     logActivity(`Created admin account '${d.username.trim().toLowerCase()}'`);
     flash(`Admin account '${d.username.trim().toLowerCase()}' created.`);
+    route();
+  }
+};
+A.updateAdmin = async (userId, f) => {
+  const d = Object.fromEntries(new FormData(f));
+  const body = { action: "update", user_id: userId, username: d.username };
+  if (d.password) body.password = d.password;
+  const u = db.admins.find(x => x.user_id === userId);
+  if (u && body.username.trim().toLowerCase() === u.username && !d.password) { flash("Nothing to change."); return route(); }
+  if (await callManageAdmins(body)) {
+    await refreshAdmins();
+    logActivity(`Edited admin account '${u ? u.username : userId}'` + (d.password ? " (password changed)" : ""));
+    flash("Admin account updated.");
     route();
   }
 };
