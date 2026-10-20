@@ -462,10 +462,16 @@ function viewLogin() {
     <p class="muted">Admin accounts are created by the master developer.</p>`, 'style="max-width:460px"');
 }
 
+// Must match the server: simple names keep the familiar email, anything else is encoded.
+function emailFor(username) {
+  if (/^[a-z0-9._-]+$/.test(username)) return `${username}@football.local`;
+  const hex = Array.from(new TextEncoder().encode(username)).map(b => b.toString(16).padStart(2, "0")).join("");
+  return `u${hex}@football.local`;
+}
 A.login = async f => {
   const d = Object.fromEntries(new FormData(f));
   const { error } = await sb.auth.signInWithPassword({
-    email: (() => { const v = d.username.trim().toLowerCase(); return v.includes("@") ? v : v + "@football.local"; })(),
+    email: (() => { const v = d.username.trim().toLowerCase(); return v.includes("@") ? v : emailFor(v); })(),
     password: d.password,
   });
   if (error) { flash("Wrong username or password."); return route(); }
@@ -823,7 +829,7 @@ function viewMaster() {
   ${viewFreezePanel()}
   ${card(`<h2>Create an admin account</h2>
     <form onsubmit="A.createAdmin(this); return false">
-      <input name="username" placeholder="Username" required>
+      <input name="username" placeholder="Username (any letters, numbers or symbols)" required>
       <input name="password" type="password" minlength="8" placeholder="Password (min 8 characters)" required>
       <button type="submit">Create admin</button>
     </form>`)}
