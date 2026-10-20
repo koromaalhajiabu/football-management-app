@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Football Management</title>
+<style>
+  :root { --green:#0b6e3a; --dark:#0f1f17; --light:#f4f7f5; --line:#dfe6e1; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--light); color:var(--dark); }
+  header { background:var(--green); color:#fff; padding:14px 18px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; }
+  header a { color:#fff; text-decoration:none; margin-left:14px; }
+  header .brand { font-weight:700; font-size:1.1rem; margin-left:0; }
+  main { max-width:1000px; margin:0 auto; padding:18px; }
+  h1 { font-size:1.5rem; margin:4px 0 14px; }
+  h2 { font-size:1.2rem; margin:0 0 10px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:.95rem; }
+  th, td { padding:8px; border-bottom:1px solid var(--line); text-align:left; }
+  th { background:#eef4f0; }
+  td.num, th.num { text-align:center; }
+  input, select, button { font:inherit; padding:8px; border:1px solid #bfcbc4; border-radius:6px; margin:4px 4px 4px 0; max-width:100%; }
+  button { background:var(--green); color:#fff; border:0; cursor:pointer; }
+  button.danger { background:#b3261e; }
+  a.link { color:var(--green); }
+  .flash { background:#fff4cc; border:1px solid #e6c200; padding:10px; border-radius:8px; margin-bottom:12px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+  .muted { color:#5b6b63; font-size:.9rem; }
+  form.inline { display:inline; }
+  footer { text-align:center; color:#5b6b63; font-size:.85rem; padding:20px; }
+  @media (max-width:600px) { th, td { padding:6px; font-size:.85rem; } }
+  @media print {
+    header, footer, .no-print, .flash, nav { display:none !important; }
+    body { background:#fff; }
+    main { padding:0; max-width:none; }
+    .card { box-shadow:none; border:0; padding:0; margin-bottom:10px; }
+    .sheet-sign { display:flex; justify-content:space-between; margin-top:36px; }
+    .sheet-sign div { border-top:1px solid #000; width:40%; padding-top:4px; font-size:10pt; }
+  }
+  .sheet-sign { display:flex; justify-content:space-between; gap:24px; margin-top:36px; }
+  .sheet-sign div { border-top:1px solid #64748b; width:40%; padding-top:6px; font-size:.9rem; color:#334155; }
+  .sheet-head { text-align:center; border-bottom:2px solid #0a2540; padding-bottom:10px; margin-bottom:14px; }
+  .sheet-head h1 { font-size:1.4rem; margin:0; }
+  .sheet-score { font-size:2rem; font-weight:700; text-align:center; margin:8px 0; font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="#/">⚽ Football Management</a>
+  <nav id="nav"></nav>
+</header>
+<main id="app"><div class="card">Loading…</div></main>
+<footer>Sierra Leone Football Management System</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ==========================================================
+   CONFIGURATION (the publishable key is safe to place here)
+   ========================================================== */
+const SUPABASE_URL = "https://ticcaervmjdzbprdpxxv.supabase.co";
+const SUPABASE_KEY = "sb_publishable_WSlNd0DeyV4Z0vM3fM28iA_c5BIYRiL";
+// Some in-app previews cannot copy Headers objects, so send headers as a plain object.
+const plainFetch = (url, opts = {}) => {
+  const o = { ...opts };
+  if (o.headers && typeof o.headers.forEach === "function" && !Array.isArray(o.headers)) {
+    const h = {};
+    o.headers.forEach((v, k) => { h[k] = v; });
+    o.headers = h;
+  }
+  return fetch(url, o);
+};
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { global: { fetch: plainFetch } });
+
+const A = {};       // action handlers used by forms and buttons
+let db = { leagues: [], admins: [] };
+let me = null;      // logged-in admin { user_id, username, role } or null
+
+/* ---------- load data from Supabase ---------- */
+async function loadData() {
+  const [L, T, P, F, E] = await Promise.all([
+    sb.from("fm_leagues").select("*").order("id"),
+    sb.from("fm_teams").select("*").order("id"),
+    sb.from("fm_players").select("*").order("id"),
+    sb.from("fm_fixtures").select("*").order("id"),
+    sb.from("fm_events").select("*").order("id"),
+  ]);
+  const failed = [L, T, P, F, E].find(r => r.error);
+  if (failed) throw failed.error;
+  db.leagues = L.data.map(l => ({
+    id: l.id, name: l.name, season: l.season,
+    teams: T.data.filter(t => t.league_id === l.id).map(t => ({
+      id: t.id, name: t.name, ground: t.ground || "", colours: t.colours || "",
+      players: P.data.filter(p => p.team_id === t.id).map(p => ({
+        id: p.id, name: p.name, position: p.position || "", shirt: p.shirt_number, dob: p.date_of_birth || ""
+      }))
+    })),
+    fixtures: F.data.filter(f => f.league_id === l.id).map(f => ({
+      id: f.id, homeId: f.home_team_id, awayId: f.away_team_id, date: f.match_date,
+      venue: f.venue || "", hs: f.home_score, as: f.away_score, status: f.status,
+      referee: f.referee || "", assistant1: f.assistant_1 || "", assistant2: f.assistant_2 || "", motmId: f.motm_player_id,
+      events: E.data.filter(e => e.fixture_id === f.id).map(e => ({
+        id: e.id, playerId: e.player_id, type: e.event_type
+      }))
+    }))
+  }));
+}
+
+async function refreshAdmins() {
+  db.admins = [];
+  if (me && me.role === "master") {
+    const { data } = await sb.from("fm_admins").select("user_id, username, role").order("username");
+    db.admins = data || [];
+  }
+}
+
+async function refreshMe() {
+  me = null;
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+  const { data } = await sb.from("fm_admins").select("user_id, username, role")
+    .eq("user_id", session.user.id).maybeSingle();
+  if (!data) { await sb.auth.signOut(); return; }
+  me = data;
+  await refreshAdmins();
+}
+
+/* ---------- helpers ---------- */
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+function flash(msg) { sessionStorage.setItem("fm_flash", msg); }
+function takeFlash() {
+  const m = sessionStorage.getItem("fm_flash");
+  sessionStorage.removeItem("fm_flash");
+  return m ? `<div class="flash">${esc(m)}</div>` : "";
+}
+function card(inner, extra = "") { return `<div class="card" ${extra}>${inner}</div>`; }
+function findLeague(id) { return db.leagues.find(l => l.id === id); }
+function findTeam(id) {
+  for (const l of db.leagues) {
+    const t = l.teams.find(t => t.id === id);
+    if (t) return { league: l, team: t };
+  }
+  return null;
+}
+function findFixture(id) {
+  for (const l of db.leagues) {
+    const f = l.fixtures.find(f => f.id === id);
+    if (f) return { league: l, fixture: f };
+  }
+  return null;
+}
+function findPlayer(id) {
+  for (const l of db.leagues) for (const t of l.teams) {
+    const p = t.players.find(p => p.id === id);
+    if (p) return { team: t, player: p };
+  }
+  return null;
+}
+function teamName(id) { const r = findTeam(id); return r ? r.team.name : "?"; }
+function matchInfoLines(f) {
+  const lines = [];
+  if (f.referee) lines.push(`Referee: ${esc(f.referee)}`);
+  if (f.motmId) {
+    const pr = findPlayer(f.motmId);
+    if (pr) lines.push(`Man of the Match: ${esc(pr.player.name)}${pr.player.shirt != null ? ` (#${pr.player.shirt})` : ""}, ${esc(pr.team.name)}`);
+  }
+  return lines.map(l => `<div class="muted">${l}</div>`).join("");
+}
+
+/* ---------- league calculations ---------- */
+function standings(l) {
+  const t = {};
+  l.teams.forEach(x => t[x.id] = { name: x.name, P:0, W:0, D:0, L:0, GF:0, GA:0, Pts:0 });
+  l.fixtures.filter(f => f.status === "finished").forEach(f => {
+    [[f.homeId, f.hs, f.as], [f.awayId, f.as, f.hs]].forEach(([id, gf, ga]) => {
+      const r = t[id];
+      if (!r) return;
+      r.P++; r.GF += gf; r.GA += ga;
+      if (gf > ga) { r.W++; r.Pts += 3; }
+      else if (gf === ga) { r.D++; r.Pts += 1; }
+      else r.L++;
+    });
+  });
+  return Object.values(t)
+    .map(r => ({ ...r, GD: r.GF - r.GA }))
+    .sort((a, b) => b.Pts - a.Pts || b.GD - a.GD || b.GF - a.GF || a.name.localeCompare(b.name));
+}
+function scorers(l) {
+  const count = {};
+  l.fixtures.forEach(f => f.events.forEach(e => {
+    if (e.type === "goal") count[e.playerId] = (count[e.playerId] || 0) + 1;
+  }));
+  return Object.entries(count).map(([pid, goals]) => {
+    const r = findPlayer(Number(pid));
+    return { player: r ? r.player.name : "?", team: r ? r.team.name : "?", goals };
+  }).sort((a, b) => b.goals - a.goals || a.player.localeCompare(b.player)).slice(0, 10);
+}
+function fixtureSort(a, b) { return a.date.localeCompare(b.date) || a.id - b.id; }
+
+/* ---------- navigation ---------- */
+function renderNav() {
+  document.getElementById("nav").innerHTML =
+    `<a href="#/">Leagues</a>` +
+    (me
+      ? `<a href="#/admin">Admin</a>` +
+        (me.role === "master" ? `<a href="#/master">Master</a><a href="#/activity">Activity</a>` : "") +
+        `<a href="#/logout">Log out (${esc(me.username)})</a>`
+      : `<a href="#/login">Admin login</a>`);
+}
+
+async function route() {
+  renderNav();
+  const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const [a, b] = parts;
+  const id = Number(parts[2]);
+  let html;
+
+  if (!a) html = viewIndex();
+  else if (a === "league") html = viewLeague(Number(b));
+  else if (a === "login") html = viewLogin();
+  else if (a === "logout") {
+    A.logout();
+    return;
+  }
+  else if (a === "admin") {
+    if (!me) { location.hash = "#/login"; return; }
+    if (!b) html = viewAdmin();
+    else if (b === "league") html = viewAdminLeague(id);
+    else if (b === "team") html = viewAdminTeam(id);
+    else if (b === "fixture" && parts[3] === "sheet") html = viewMatchSheet(id);
+    else if (b === "fixture") html = viewAdminFixture(id);
+  }
+  else if (a === "activity") {
+    if (!me) { location.hash = "#/login"; return; }
+    if (me.role !== "master") { flash("Only the master developer can open this page."); location.hash = "#/admin"; return; }
+    html = await viewActivity();
+  }
+  else if (a === "master") {
+    if (!me) { location.hash = "#/login"; return; }
+    if (me.role !== "master") {
+      flash("Only the master developer can open this page.");
+      location.hash = "#/admin";
+      return;
+    }
+    html = viewMaster();
+  }
+  document.getElementById("app").innerHTML = takeFlash() + (html || card("Page not found."));
+}
+
+/* ---------- PUBLIC VIEWERS PANEL (no login) ---------- */
+function viewIndex() {
+  if (!db.leagues.length) return card("No leagues have been published yet.");
+  return `<h1>Leagues</h1><div class="grid">` + db.leagues.map(l => card(
+    `<h2>${esc(l.name)}</h2><div class="muted">Season ${esc(l.season)}</div>
+     <p><a class="link" href="#/league/${l.id}">View fixtures, results and table →</a></p>`
+  )).join("") + `</div>`;
+}
+
+function viewLeague(id) {
+  const l = findLeague(id);
+  if (!l) return null;
+  const fx = l.fixtures.slice().sort(fixtureSort);
+  const up = fx.filter(f => f.status !== "finished");
+  const res = fx.filter(f => f.status === "finished");
+  const table = standings(l);
+  const sc = scorers(l);
+  return `
+  <h1>${esc(l.name)} <span class="muted">· ${esc(l.season)}</span></h1>
+  <div class="grid">
+    ${card(`<h2>Upcoming fixtures</h2><table>
+      <tr><th>Date</th><th>Match</th><th>Venue</th></tr>
+      ${up.map(f => `<tr><td>${esc(f.date)}</td><td>${esc(teamName(f.homeId))} vs ${esc(teamName(f.awayId))}</td><td>${esc(f.venue)}</td></tr>`).join("")
+        || `<tr><td colspan="3" class="muted">No upcoming fixtures.</td></tr>`}
+    </table>`)}
+    ${card(`<h2>Results</h2><table>
+      <tr><th>Date</th><th>Match</th><th class="num">Score</th></tr>
+      ${res.map(f => `<tr><td>${esc(f.date)}</td><td>${esc(teamName(f.homeId))} vs ${esc(teamName(f.awayId))}</td>
+        <td class="num"><strong>${f.hs} - ${f.as}</strong>${matchInfoLines(f)}</td></tr>`).join("")
+        || `<tr><td colspan="3" class="muted">No results yet.</td></tr>`}
+    </table>`)}
+  </div>
+  ${card(`<h2>League table</h2>
+    <div class="no-print" style="margin-bottom:10px"><button class="secondary" onclick="A.exportTable(${l.id})">Download table (CSV)</button></div><table>
+    <tr><th>#</th><th>Team</th><th class="num">P</th><th class="num">W</th><th class="num">D</th><th class="num">L</th>
+        <th class="num">GF</th><th class="num">GA</th><th class="num">GD</th><th class="num">Pts</th></tr>
+    ${table.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.name)}</td><td class="num">${r.P}</td><td class="num">${r.W}</td>
+      <td class="num">${r.D}</td><td class="num">${r.L}</td><td class="num">${r.GF}</td><td class="num">${r.GA}</td>
+      <td class="num">${r.GD}</td><td class="num"><strong>${r.Pts}</strong></td></tr>`).join("")
+      || `<tr><td colspan="10" class="muted">No teams yet.</td></tr>`}
+  </table>`)}
+  ${card(`<h2>Top scorers</h2><table>
+    <tr><th>#</th><th>Player</th><th>Team</th><th class="num">Goals</th></tr>
+    ${sc.map((s, i) => `<tr><td>${i + 1}</td><td>${esc(s.player)}</td><td>${esc(s.team)}</td><td class="num">${s.goals}</td></tr>`).join("")
+      || `<tr><td colspan="4" class="muted">No goals recorded yet.</td></tr>`}
+  </table>`)}`;
+}
+
+/* ---------- LOGIN ---------- */
+function viewLogin() {
+  return card(`<h2>Admin login</h2>
+    <form onsubmit="A.login(this); return false">
+      <input name="username" placeholder="Email or username" required autofocus>
+      <input name="password" type="password" placeholder="Password" required>
+      <button type="submit">Log in</button>
+    </form>
+    <p class="muted">Admin accounts are created by the master developer.</p>`, 'style="max-width:460px"');
+}
+
+A.login = async f => {
+  const d = Object.fromEntries(new FormData(f));
+  const { error } = await sb.auth.signInWithPassword({
+    email: (() => { const v = d.username.trim().toLowerCase(); return v.includes("@") ? v : v + "@football.local"; })(),
+    password: d.password,
+  });
+  if (error) { flash("Wrong username or password."); return route(); }
+  await refreshMe();
+  if (!me) { flash("This account is not an admin account."); return route(); }
+  logActivity("Logged in");
+  flash(`Welcome, ${me.username}.`);
+  location.hash = "#/admin";
+  route();
+};
+
+A.logout = async () => {
+  await sb.auth.signOut();
+  me = null;
+  db.admins = [];
+  flash("You have logged out.");
+  location.hash = "#/";
+  route();
+};
+
+/* ---------- activity log ---------- */
+function logActivity(action) {
+  if (!me) return;
+  sb.from("fm_activity").insert({ actor_user_id: me.user_id, actor_name: me.username, action })
+    .then(({ error }) => { if (error) console.warn("Activity not saved:", error.message); });
+}
+
+/* ---------- write helper: run a change, reload data, re-render ---------- */
+async function run(request, msg) {
+  const { error } = await request;
+  if (error) { alert(error.message); return false; }
+  if (msg) logActivity(msg);
+  await loadData();
+  if (msg) flash(msg);
+  route();
+  return true;
+}
+
+/* ---------- ADMIN: leagues ---------- */
+function viewAdmin() {
+  return `<h1>Leagues</h1>
+  ${card(`<h2>Create a league</h2>
+    <form onsubmit="A.createLeague(this); return false">
+      <input name="name" placeholder="League name" required>
+      <input name="season" placeholder="Season, e.g. 2026/27" required>
+      <button type="submit">Create league</button>
+    </form>`)}
+  ${card(`<table><tr><th>League</th><th>Season</th><th></th></tr>
+    ${db.leagues.slice().reverse().map(l => `<tr>
+      <td>${esc(l.name)}</td><td>${esc(l.season)}</td>
+      <td><a class="link" href="#/admin/league/${l.id}">Manage</a>
+        <button class="danger" onclick="A.deleteLeague(${l.id})">Delete</button></td></tr>`).join("")
+      || `<tr><td colspan="3" class="muted">No leagues yet.</td></tr>`}
+    </table>`)}`;
+}
+A.createLeague = f => {
+  const d = Object.fromEntries(new FormData(f));
+  if (!d.name.trim() || !d.season.trim()) return;
+  run(sb.from("fm_leagues").insert({ name: d.name.trim(), season: d.season.trim() }), "League created.");
+};
+A.deleteLeague = id => {
+  if (!confirm("Delete this league and everything in it?")) return;
+  location.hash = "#/admin";
+  run(sb.from("fm_leagues").delete().eq("id", id), "League deleted.");
+};
+
+/* ---------- ADMIN: one league (teams and fixtures) ---------- */
+function viewAdminLeague(id) {
+  const l = findLeague(id);
+  if (!l) return null;
+  const teamOptions = l.teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join("");
+  return `<p><a class="link" href="#/admin">← All leagues</a></p>
+  <h1>${esc(l.name)} <span class="muted">· ${esc(l.season)}</span></h1>
+  <div class="grid">
+    ${card(`<h2>Teams</h2>
+      <form onsubmit="A.addTeam(${l.id}, this); return false">
+        <input name="name" placeholder="Team name" required>
+        <input name="ground" placeholder="Home ground">
+        <input name="colours" placeholder="Colours">
+        <button type="submit">Add team</button>
+      </form>
+      <table><tr><th>Team</th><th></th></tr>
+      ${l.teams.map(t => `<tr><td><a class="link" href="#/admin/team/${t.id}">${esc(t.name)}</a>
+        <div class="muted">${esc(t.ground)} ${esc(t.colours)}</div></td>
+        <td><button class="danger" onclick="A.deleteTeam(${t.id})">Delete</button></td></tr>`).join("")
+        || `<tr><td colspan="2" class="muted">No teams yet.</td></tr>`}
+      </table>`)}
+    ${card(`<h2>Fixtures</h2>
+      ${l.teams.length >= 2 ? `<form onsubmit="A.addFixture(${l.id}, this); return false">
+        <select name="homeId" required><option value="">Home team</option>${teamOptions}</select>
+        <select name="awayId" required><option value="">Away team</option>${teamOptions}</select>
+        <input type="date" name="date" required>
+        <input name="venue" placeholder="Venue">
+        <button type="submit">Add fixture</button>
+      </form>` : `<p class="muted">Add at least two teams before creating fixtures.</p>`}
+      <table><tr><th>Date</th><th>Match</th><th class="num">Score</th><th></th></tr>
+      ${l.fixtures.slice().sort(fixtureSort).map(f => `<tr>
+        <td>${esc(f.date)}</td>
+        <td><a class="link" href="#/admin/fixture/${f.id}">${esc(teamName(f.homeId))} vs ${esc(teamName(f.awayId))}</a></td>
+        <td class="num">${f.status === "finished" ? `${f.hs} - ${f.as}` : "-"}</td>
+        <td><button class="danger" onclick="A.deleteFixture(${f.id})">Delete</button></td></tr>`).join("")
+        || `<tr><td colspan="4" class="muted">No fixtures yet.</td></tr>`}
+      </table>`)}
+  </div>`;
+}
+A.addTeam = (leagueId, f) => {
+  const d = Object.fromEntries(new FormData(f));
+  if (!d.name.trim()) return;
+  run(sb.from("fm_teams").insert({ league_id: leagueId, name: d.name.trim(),
+    ground: d.ground.trim(), colours: d.colours.trim() }), "Team added.");
+};
+A.deleteTeam = id => {
+  if (!confirm("Delete this team and its fixtures?")) return;
+  run(sb.from("fm_teams").delete().eq("id", id), "Team deleted.");
+};
+A.addFixture = (leagueId, f) => {
+  const d = Object.fromEntries(new FormData(f));
+  const homeId = Number(d.homeId), awayId = Number(d.awayId);
+  if (!homeId || !awayId || homeId === awayId || !d.date) return alert("Choose two different teams and a date.");
+  run(sb.from("fm_fixtures").insert({ league_id: leagueId, home_team_id: homeId, away_team_id: awayId,
+    match_date: d.date, venue: d.venue.trim() }), "Fixture added.");
+};
+A.deleteFixture = id => {
+  if (!confirm("Delete this fixture?")) return;
+  run(sb.from("fm_fixtures").delete().eq("id", id), "Fixture deleted.");
+};
+
+/* ---------- ADMIN: one team (players and staff) ---------- */
+function viewAdminTeam(id) {
+  const r = findTeam(id);
+  if (!r) return null;
+  const { league: l, team: t } = r;
+  return `<p><a class="link" href="#/admin/league/${l.id}">← Back to ${esc(l.name)}</a></p>
+  <h1>${esc(t.name)}</h1>
+  ${card(`<h2>Add a player or staff member</h2>
+    <form onsubmit="A.addPlayer(${t.id}, this); return false">
+      <input name="name" placeholder="Full name" required>
+      <input name="position" placeholder="Position or role">
+      <input name="shirt" type="number" min="0" placeholder="Shirt no.">
+      <input name="dob" type="date">
+      <button type="submit">Add</button>
+    </form>`)}
+  ${card(`<table><tr><th class="num">No.</th><th>Name</th><th>Position</th><th>Date of birth</th><th></th></tr>
+    ${t.players.slice().sort((a, b) => (a.shirt ?? 999) - (b.shirt ?? 999) || a.name.localeCompare(b.name)).map(p => `<tr>
+      <td class="num">${p.shirt ?? ""}</td><td>${esc(p.name)}</td><td>${esc(p.position)}</td><td>${esc(p.dob)}</td>
+      <td><button class="danger" onclick="A.deletePlayer(${p.id})">Remove</button></td></tr>`).join("")
+      || `<tr><td colspan="5" class="muted">No players yet.</td></tr>`}
+    </table>`)}`;
+}
+A.addPlayer = (teamId, f) => {
+  const d = Object.fromEntries(new FormData(f));
+  if (!d.name.trim()) return;
+  run(sb.from("fm_players").insert({ team_id: teamId, name: d.name.trim(), position: d.position.trim(),
+    shirt_number: d.shirt === "" ? null : Number(d.shirt), date_of_birth: d.dob || null }), "Player added.");
+};
+A.deletePlayer = id => {
+  if (!confirm("Remove this player?")) return;
+  run(sb.from("fm_players").delete().eq("id", id), "Player removed.");
+};
+
+/* ---------- ADMIN: one fixture (result, goals, cards) ---------- */
+function viewAdminFixture(id) {
+  const r = findFixture(id);
+  if (!r) return null;
+  const { league: l, fixture: f } = r;
+  const players = [];
+  [f.homeId, f.awayId].forEach(tid => {
+    const t = findTeam(tid);
+    if (t) t.team.players.forEach(p => players.push({ id: p.id, name: p.name, shirt: p.shirt, team: t.team.name }));
+  });
+  return `<p><a class="link" href="#/admin/league/${l.id}">← Back to ${esc(l.name)}</a></p>
+  <h1>${esc(teamName(f.homeId))} vs ${esc(teamName(f.awayId))} <span class="muted">· ${esc(f.date)}</span></h1>
+  <p class="no-print"><a class="link" href="#/admin/fixture/${f.id}/sheet">Open printable match sheet →</a></p>
+  <div class="grid">
+    ${card(`<h2>Result</h2>
+      <form onsubmit="A.saveResult(${f.id}, this); return false">
+        <input name="hs" type="number" min="0" value="${f.hs ?? ""}" placeholder="${esc(teamName(f.homeId))}" style="width:110px">
+        -
+        <input name="as" type="number" min="0" value="${f.as ?? ""}" placeholder="${esc(teamName(f.awayId))}" style="width:110px">
+        <select name="status">
+          <option value="scheduled" ${f.status !== "finished" ? "selected" : ""}>Scheduled</option>
+          <option value="finished" ${f.status === "finished" ? "selected" : ""}>Finished</option>
+        </select>
+        <button type="submit">Save result</button>
+      </form>`)}
+    ${card(`<h2>Match officials and Man of the Match</h2>
+      <form onsubmit="A.saveMatchInfo(${f.id}, this); return false">
+        <input name="referee" placeholder="Referee" value="${esc(f.referee)}" style="width:100%;margin-bottom:8px">
+        <input name="assistant_1" placeholder="Assistant referee 1" value="${esc(f.assistant1)}" style="width:100%;margin-bottom:8px">
+        <input name="assistant_2" placeholder="Assistant referee 2" value="${esc(f.assistant2)}" style="width:100%;margin-bottom:8px">
+        <select name="motm_player_id" style="width:100%;margin-bottom:8px">
+          <option value="">Man of the Match (none)</option>
+          ${players.map(p => `<option value="${p.id}" ${p.id === f.motmId ? "selected" : ""}>${esc(p.team)}: ${esc(p.name)}${p.shirt != null ? ` (#${p.shirt})` : ""}</option>`).join("")}
+        </select>
+        <button type="submit">Save match details</button>
+      </form>`)}
+    ${card(`<h2>Goals and cards</h2>
+      ${players.length ? `<form onsubmit="A.addEvent(${f.id}, this); return false">
+        <select name="playerId" required><option value="">Player</option>
+          ${players.map(p => `<option value="${p.id}">${esc(p.team)}: ${esc(p.name)}${p.shirt != null ? ` (#${p.shirt})` : ""}</option>`).join("")}
+        </select>
+        <select name="type">
+          <option value="goal">Goal</option><option value="yellow">Yellow card</option><option value="red">Red card</option>
+        </select>
+        <button type="submit">Record</button>
+      </form>` : `<p class="muted">Add players to these teams first.</p>`}
+      <table><tr><th>Event</th><th>Player</th><th>Team</th><th></th></tr>
+      ${f.events.map(e => {
+        const pr = findPlayer(e.playerId);
+        const label = { goal: "Goal", yellow: "Yellow card", red: "Red card" }[e.type];
+        return `<tr><td>${label}</td><td>${esc(pr ? pr.player.name : "?")}</td><td>${esc(pr ? pr.team.name : "")}</td>
+          <td><button class="danger" onclick="A.deleteEvent(${e.id})">Remove</button></td></tr>`;
+      }).join("") || `<tr><td colspan="4" class="muted">No events recorded.</td></tr>`}
+      </table>`)}
+  </div>`;
+}
+A.exportTable = id => {
+  const l = findLeague(id);
+  if (!l) return;
+  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const header = ["Pos", "Team", "P", "W", "D", "L", "GF", "GA", "GD", "Pts"];
+  const lines = [header.join(",")];
+  standings(l).forEach((r, i) => {
+    lines.push([i + 1, q(r.name), r.P, r.W, r.D, r.L, r.GF, r.GA, r.GD, r.Pts].join(","));
+  });
+  const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${l.name}-${l.season}-table`.replace(/[^a-z0-9-]+/gi, "_") + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+A.saveMatchInfo = (fixtureId, f) => {
+  const d = Object.fromEntries(new FormData(f));
+  run(sb.from("fm_fixtures").update({
+    referee: d.referee.trim() || null,
+    assistant_1: d.assistant_1.trim() || null,
+    assistant_2: d.assistant_2.trim() || null,
+    motm_player_id: d.motm_player_id ? Number(d.motm_player_id) : null,
+  }).eq("id", fixtureId), "Match details saved.");
+};
+A.saveResult = (fixtureId, f) => {
+  const d = Object.fromEntries(new FormData(f));
+  const hs = d.hs === "" ? null : Number(d.hs), as = d.as === "" ? null : Number(d.as);
+  const status = d.status === "finished" && hs !== null && as !== null ? "finished" : "scheduled";
+  run(sb.from("fm_fixtures").update({ home_score: hs, away_score: as, status }).eq("id", fixtureId), "Result saved.");
+};
+A.addEvent = (fixtureId, f) => {
+  const d = Object.fromEntries(new FormData(f));
+  if (!d.playerId) return;
+  run(sb.from("fm_events").insert({ fixture_id: fixtureId, player_id: Number(d.playerId), event_type: d.type }), "Recorded.");
+};
+A.deleteEvent = id => {
+  run(sb.from("fm_events").delete().eq("id", id), "Event removed.");
+};
+
+/* ---------- ACTIVITY (master developer only) ---------- */
+async function viewActivity() {
+  const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+  const { data, error } = await sb.from("fm_activity").select("*")
+    .order("created_at", { ascending: false }).limit(300);
+  if (error) return card(`Could not load activity: ${esc(error.message)}`);
+  const rows = data || [];
+  const today = rows.filter(r => new Date(r.created_at) >= startOfDay).length;
+  const people = [...new Set(rows.map(r => r.actor_name))];
+  return `<h1>Activity</h1>
+  <p class="muted">Latest 300 actions in the football system.</p>
+  <div class="grid">
+    ${card(`<div class="muted">Actions today</div><h2 style="font-size:1.8rem">${today}</h2>`)}
+    ${card(`<div class="muted">Shown</div><h2 style="font-size:1.8rem">${rows.length}</h2>`)}
+    ${card(`<div class="muted">People active</div><h2 style="font-size:1.8rem">${people.length}</h2>`)}
+  </div>
+  ${card(`<input id="actSearch" placeholder="Search by username or action" oninput="A.filterActivity()" style="width:100%;margin-bottom:12px">
+    <table><tr><th>When</th><th>Person</th><th>Action</th></tr>
+    <tbody id="actRows">
+    ${rows.map(r => `<tr class="arow" data-q="${esc((r.actor_name + " " + r.action).toLowerCase())}">
+      <td>${new Date(r.created_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</td>
+      <td>${esc(r.actor_name)}</td><td>${esc(r.action)}</td></tr>`).join("")
+      || `<tr><td colspan="3" class="muted">No activity recorded yet.</td></tr>`}
+    </tbody></table>`)}`;
+}
+A.filterActivity = () => {
+  const q = document.getElementById("actSearch").value.trim().toLowerCase();
+  document.querySelectorAll(".arow").forEach(r => r.style.display = !q || r.dataset.q.includes(q) ? "" : "none");
+};
+
+/* ---------- PRINTABLE MATCH SHEET ---------- */
+function viewMatchSheet(id) {
+  const r = findFixture(id);
+  if (!r) return null;
+  const { league: l, fixture: f } = r;
+  const home = findTeam(f.homeId), away = findTeam(f.awayId);
+  const lineup = t => t ? t.team.players.slice().sort((a, b) => (a.shirt ?? 999) - (b.shirt ?? 999) || a.name.localeCompare(b.name)) : [];
+  const playerRow = p => `<tr><td class="num">${p.shirt ?? ""}</td><td>${esc(p.name)}</td><td>${esc(p.position)}</td></tr>`;
+  const eventRows = f.events.map(e => {
+    const pr = findPlayer(e.playerId);
+    const label = { goal: "Goal", yellow: "Yellow card", red: "Red card" }[e.type];
+    return `<tr><td>${label}</td><td>${esc(pr ? pr.player.name : "?")}</td><td>${esc(pr ? pr.team.name : "")}</td></tr>`;
+  }).join("");
+  const motm = f.motmId ? findPlayer(f.motmId) : null;
+  const finished = f.status === "finished";
+  return `<p class="no-print"><a class="link" href="#/admin/fixture/${f.id}">← Back to match</a> &nbsp;
+      <button onclick="window.print()">Print match sheet</button></p>
+    <div class="card">
+      <div class="sheet-head">
+        <div class="muted">${esc(l.name)} · ${esc(l.season)}</div>
+        <h1>${esc(teamName(f.homeId))} vs ${esc(teamName(f.awayId))}</h1>
+        <div class="muted">${esc(f.date)}${f.venue ? " · " + esc(f.venue) : ""}</div>
+      </div>
+      <div class="sheet-score">${finished ? `${f.hs} - ${f.as}` : "_ - _"}</div>
+      <table style="margin-bottom:14px">
+        <tr><th>Referee</th><td>${esc(f.referee || "")}</td></tr>
+        <tr><th>Assistant 1</th><td>${esc(f.assistant1 || "")}</td></tr>
+        <tr><th>Assistant 2</th><td>${esc(f.assistant2 || "")}</td></tr>
+        <tr><th>Man of the Match</th><td>${motm ? `${esc(motm.player.name)} (${esc(motm.team.name)}${motm.player.shirt != null ? ", #" + motm.player.shirt : ""})` : ""}</td></tr>
+      </table>
+    </div>
+    <div class="grid">
+      <div class="card"><h2>${esc(teamName(f.homeId))} — lineup</h2>
+        <table><tr><th class="num">No.</th><th>Name</th><th>Position</th></tr>
+        ${lineup(home).map(playerRow).join("") || `<tr><td colspan="3" class="muted">No players listed.</td></tr>`}</table></div>
+      <div class="card"><h2>${esc(teamName(f.awayId))} — lineup</h2>
+        <table><tr><th class="num">No.</th><th>Name</th><th>Position</th></tr>
+        ${lineup(away).map(playerRow).join("") || `<tr><td colspan="3" class="muted">No players listed.</td></tr>`}</table></div>
+    </div>
+    <div class="card"><h2>Goals and cards</h2>
+      <table><tr><th>Event</th><th>Player</th><th>Team</th></tr>
+      ${eventRows || `<tr><td colspan="3" class="muted">None recorded.</td></tr>`}</table></div>
+    <div class="sheet-sign">
+      <div>Referee signature</div>
+      <div>Captain signature</div>
+    </div>`;
+}
+
+/* ---------- MASTER DEVELOPER ---------- */
+function viewMaster() {
+  return `<h1>Admin accounts</h1>
+  ${card(`<h2>Create an admin account</h2>
+    <form onsubmit="A.createAdmin(this); return false">
+      <input name="username" placeholder="Username" required>
+      <input name="password" type="password" minlength="8" placeholder="Password (min 8 characters)" required>
+      <button type="submit">Create admin</button>
+    </form>`)}
+  ${card(`<table><tr><th>Username</th><th>Role</th><th></th></tr>
+    ${db.admins.map(u => `<tr><td>${esc(u.username)}</td>
+      <td>${u.role === "master" ? "Master developer" : "Admin"}</td>
+      <td>${u.role === "admin" ? `<button class="danger" onclick="A.deleteAdmin('${u.user_id}')">Remove</button>` : ""}</td></tr>`).join("")}
+    </table>`)}`;
+}
+
+async function callManageAdmins(body) {
+  const { data: { session } } = await sb.auth.getSession();
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/fm-manage-admins`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + session.access_token, "apikey": SUPABASE_KEY },
+    body: JSON.stringify(body),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) { alert(out.error || "Something went wrong."); return false; }
+  return true;
+}
+A.createAdmin = async f => {
+  const d = Object.fromEntries(new FormData(f));
+  if (await callManageAdmins({ action: "create", username: d.username, password: d.password })) {
+    await refreshAdmins();
+    logActivity(`Created admin account '${d.username.trim().toLowerCase()}'`);
+    flash(`Admin account '${d.username.trim().toLowerCase()}' created.`);
+    route();
+  }
+};
+A.deleteAdmin = async userId => {
+  if (!confirm("Remove this admin account?")) return;
+  if (await callManageAdmins({ action: "delete", user_id: userId })) {
+    await refreshAdmins();
+    logActivity("Removed an admin account");
+    flash("Admin account removed.");
+    route();
+  }
+};
+
+/* ---------- start ---------- */
+(async function init() {
+  try {
+    await loadData();
+    await refreshMe();
+  } catch (e) {
+    document.getElementById("app").innerHTML = card(`Could not connect to the database: ${esc(e.message)}`);
+    return;
+  }
+  window.addEventListener("hashchange", route);
+  if (!location.hash) location.hash = "#/";
+  route();
+})();
+</script>
+</body>
+</html>
