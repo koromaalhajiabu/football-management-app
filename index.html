@@ -130,6 +130,22 @@
     border-top:1px solid var(--line); background:rgba(255,255,255,.5); backdrop-filter:blur(6px);
   }
   footer .credit { font-weight:700; background:linear-gradient(90deg,#b8860b,var(--gold),#b8860b); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .page-head { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-bottom:8px; }
+  .page-head h1 { margin-bottom:4px; }
+  .hero {
+    background:linear-gradient(120deg, var(--navy) 0%, var(--navy-2) 60%, #145c33 100%);
+    color:#fff; border-radius:20px; padding:30px 28px; margin-bottom:24px; position:relative; overflow:hidden;
+    box-shadow:0 18px 40px rgba(7,19,13,.28); border:1px solid rgba(212,167,44,.35);
+  }
+  .hero::after {
+    content:""; position:absolute; right:-60px; top:-60px; width:220px; height:220px; border-radius:50%;
+    background:radial-gradient(circle, rgba(212,167,44,.35), transparent 70%);
+  }
+  .hero h1 { color:#fff; font-size:2.1rem; margin:4px 0 8px; }
+  .hero .muted { color:rgba(255,255,255,.78); margin:0; max-width:560px; }
+  .eyebrow { text-transform:uppercase; letter-spacing:.18em; font-size:.74rem; font-weight:700; color:var(--gold); margin:0; }
+  .grid .card { border-top:3px solid var(--gold); }
+  .grid .card h2 { font-size:1.3rem; }
   .frozen { text-align:center; padding:70px 20px; }
   .frozen-icon { font-size:3rem; margin-bottom:8px; }
   @media (max-width:600px) {
@@ -389,7 +405,8 @@ A.setFrozen = async (frozen, message = "") => {
 /* ---------- PUBLIC VIEWERS PANEL (no login) ---------- */
 function viewIndex() {
   if (!db.leagues.length) return card("No leagues have been published yet.");
-  return `<h1>Leagues</h1><div class="grid">` + db.leagues.map(l => card(
+  return `<section class="hero"><p class="eyebrow">Sierra Leone Football</p><h1>Leagues</h1>
+    <p class="muted">Fixtures, results, league tables and top scorers, updated as matches are played.</p></section><div class="grid">` + db.leagues.map(l => card(
     `<h2>${esc(l.name)}</h2><div class="muted">Season ${esc(l.season)}</div>
      <p><a class="link" href="#/league/${l.id}">View fixtures, results and table →</a></p>`
   )).join("") + `</div>`;
@@ -475,6 +492,15 @@ A.logout = async () => {
 };
 
 /* ---------- activity log ---------- */
+A.resetActivity = async () => {
+  if (!me || me.role !== "master") return;
+  if (!confirm("Reset the activity log? All recorded activity will be deleted. This cannot be undone.")) return;
+  const { error } = await sb.from("fm_activity").delete().gte("created_at", "1970-01-01T00:00:00Z");
+  if (error) return alert("Could not reset the activity log: " + error.message);
+  flash("Activity log reset.");
+  logActivity("Reset the activity log");
+  route();
+};
 function logActivity(action) {
   if (!me) return;
   sb.from("fm_activity").insert({ actor_user_id: me.user_id, actor_name: me.username, action })
@@ -721,8 +747,9 @@ async function viewActivity() {
   const rows = data || [];
   const today = rows.filter(r => new Date(r.created_at) >= startOfDay).length;
   const people = [...new Set(rows.map(r => r.actor_name))];
-  return `<h1>Activity</h1>
-  <p class="muted">Latest 300 actions in the football system.</p>
+  return `<div class="page-head"><div><h1>Activity</h1>
+  <p class="muted">Latest 300 actions in the football system.</p></div>
+  <button class="danger" onclick="A.resetActivity()">Reset activity log</button></div>
   <div class="grid">
     ${card(`<div class="muted">Actions today</div><h2 style="font-size:1.8rem">${today}</h2>`)}
     ${card(`<div class="muted">Shown</div><h2 style="font-size:1.8rem">${rows.length}</h2>`)}
