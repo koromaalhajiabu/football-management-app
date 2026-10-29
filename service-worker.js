@@ -1,4 +1,4 @@
-const CACHE_NAME = 'football-management-v2';
+const CACHE_NAME = 'football-management-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -38,22 +38,30 @@ self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (NEVER_CACHE_HOSTS.some(h => url.hostname.endsWith(h))) return; // let the network handle it
+  if (NEVER_CACHE_HOSTS.some(h => url.hostname.endsWith(h))) return;
+
+  const isPage = url.origin === self.location.origin && (req.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('/index.html'));
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
-    const cached = await cache.match(req);
-    if (cached) return cached;
-    try {
-      const res = await fetch(req);
-      if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone()).catch(() => {});
-      return res;
-    } catch (err) {
-      if (req.mode === 'navigate') {
+    if (isPage) {
+      // Pages: network first, so design and content updates appear straight away.
+      // The saved copy is used only when the phone is offline.
+      try {
+        const res = await fetch(req);
+        if (res && res.ok) cache.put('./index.html', res.clone()).catch(() => {});
+        return res;
+      } catch (err) {
         const shell = await cache.match('./index.html');
         if (shell) return shell;
+        throw err;
       }
-      throw err;
     }
+    // Other files (icons, background, manifest): saved copy first, then network.
+    const cached = await cache.match(req);
+    if (cached) return cached;
+    const res = await fetch(req);
+    if (res && res.ok) cache.put(req, res.clone()).catch(() => {});
+    return res;
   })());
 });
