@@ -175,6 +175,10 @@
     th, td { padding:8px 6px; font-size:.84rem; }
     header { padding:14px 16px; }
   }
+
+/* Background photo watermark: sits behind all content, faint so text stays readable */
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:url('./background.jpg') center top / cover no-repeat;opacity:.1}
+@media (prefers-color-scheme:dark){body::before{opacity:.07}}
 </style>
 </head>
 <body>

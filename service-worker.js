@@ -1,10 +1,11 @@
-const CACHE_NAME = 'football-management-v1';
+const CACHE_NAME = 'football-management-v2';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './background.jpg'
 ];
 // Third-party files the page needs to run. Cached so the page opens offline.
 const STATIC_CDN = [
