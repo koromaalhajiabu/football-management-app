@@ -180,6 +180,68 @@
 body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:url('./background.jpg') center top / cover no-repeat;opacity:.1}
 @media (prefers-color-scheme:dark){body::before{opacity:.07}}
 </style>
+
+<style id="koroma-premium-dashboard-2026">
+:root{
+  --klt-accent:#0b6e3a;
+  --klt-glow:rgba(11,110,58,.14);
+  --klt-ease:cubic-bezier(.2,.75,.25,1);
+}
+html{scroll-behavior:smooth}
+.card,.panel,.stat,.stat-card,.kpi,.content-panel,.hero,.pagehead,.page-head,.login-card{
+  border-radius:18px!important;
+  transition:transform .24s var(--klt-ease),box-shadow .24s var(--klt-ease),border-color .24s var(--klt-ease);
+  box-shadow:0 12px 34px rgba(15,35,60,.075),inset 0 1px 0 rgba(255,255,255,.42);
+}
+.stat,.stat-card,.kpi{
+  position:relative;
+  overflow:hidden;
+  isolation:isolate;
+  animation:kltDashboardRise .55s var(--klt-ease) both;
+}
+.stat::after,.stat-card::after,.kpi::after{
+  content:"";
+  position:absolute;
+  width:155px;height:155px;
+  right:-62px;bottom:-88px;
+  border-radius:50%;
+  background:radial-gradient(circle,var(--klt-glow),transparent 70%);
+  pointer-events:none;
+  z-index:-1;
+}
+.card:hover,.panel:hover,.stat:hover,.stat-card:hover,.kpi:hover,.content-panel:hover{
+  transform:translateY(-2px);
+  box-shadow:0 18px 42px rgba(15,35,60,.11),inset 0 1px 0 rgba(255,255,255,.5);
+}
+button,.btn,.navbtn,.tab,nav a,nav button{
+  transition:transform .18s var(--klt-ease),filter .18s ease,box-shadow .18s ease,background-color .18s ease;
+}
+button:hover:not(:disabled),.btn:hover:not(:disabled){
+  filter:brightness(1.045);
+}
+button:active:not(:disabled),.btn:active:not(:disabled){
+  transform:translateY(1px) scale(.99);
+}
+input,select,textarea{
+  border-radius:11px;
+  transition:border-color .18s ease,box-shadow .18s ease;
+}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{
+  outline:3px solid var(--klt-glow);
+  outline-offset:2px;
+}
+table tbody tr{transition:background-color .16s ease}
+table tbody tr:hover{background:var(--klt-glow)}
+@keyframes kltDashboardRise{
+  from{opacity:0;transform:translateY(9px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+
 </head>
 <body>
 <header>
